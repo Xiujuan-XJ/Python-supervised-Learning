@@ -1,0 +1,89 @@
+import numpy as np
+import nltk
+import operator
+
+stopwords = ['ourselves', 'hers', 'between', 'yourself', 'but', 'again', 'there',
+    'about', 'once', 'during', 'out', 'very', 'having', 'with', 'they', 'own', 'an', 'be',
+    'some', 'for', 'do', 'its', 'yours', 'such', 'into', 'of', 'most', 'itself', 'other', 'off',
+    'is', 'am', 'or', 'who', 'as', 'from', 'him', 'each', 'the', 'themselves', 'until', 'below',
+    'are', 'we', 'these', 'your', 'his', 'through', 'dont', 'nor', 'me', 'were', 'her', 'more',
+    'himself', 'this', 'down', 'should', 'our', 'their', 'while', 'above', 'both', 'up', 'to',
+    'ours', 'had', 'she', 'all', 'no', 'when', 'at', 'any', 'before', 'them', 'same', 'and',
+    'been', 'have', 'in', 'will', 'on', 'does', 'yourselves', 'then', 'that', 'because', 'what',
+    'over', 'why', 'so', 'can', 'did', 'not', 'now', 'under', 'he', 'you', 'herself', 'has', 'just',
+    'where', 'too', 'only', 'myself', 'which', 'those', 'i', 'after', 'few', 'whom', 'being',
+    'if', 'theirs', 'my', 'against', 'a', 'by', 'doing', 'it', 'how', 'further', 'was', 'here', 'than']
+
+file = open('data/entropy.txt', encoding='utf-8')
+doc = file.read()
+file.close()
+
+porter = nltk.stem.PorterStemmer()
+sentences = nltk.tokenize.sent_tokenize(doc) #sentence tokenize, returns 1d array, [s1,s2,s3..]each element is one sentence
+clean_sentences = []
+
+#remove punctuations from a word
+def rm_punc(word):
+    str = ''
+    for ch in word:
+        if ch not in '.:()",!?@#$%^*~+\'': 
+            str += ch
+    return str
+
+#apply stemming, lower-casing and punctuation-removal
+
+for sentence in sentences:
+    words = sentence.split()
+    words = [rm_punc(w.lower()) for w in words]
+    words = [porter.stem(w) for w in words if w not in stopwords] #porter.stem==>nltk.stem.PorterStemmer().stem
+    clean_sentences.append(words)
+
+#computer normalized term-frequency
+norm_tf = []
+for sentence in clean_sentences:
+    word_tf = {}
+    for word in sentence:
+        if word_tf.get(word) is None:
+            word_tf[word] = 1
+        else:
+            word_tf[word] += 1
+
+    norm_word_tf = {}
+    for word in word_tf.keys():
+        norm_word_tf[word] = word_tf[word] / len(sentence)
+    norm_tf.append(norm_word_tf)
+
+#compute idf for each word in the vocabulary
+idf = {}
+n_sentences = len(clean_sentences)
+for sentence in clean_sentences:
+    for word in sentence:
+        if idf.get(word) is None:
+            freq = 0
+            for dict in norm_tf:
+                if dict.get(word) is not None:
+                    freq += 1
+            idf[word] = 1 + np.log10((1 + n_sentences)/(1 + freq))
+
+#compute tf-idf sum for each sentence
+tfidf_sums = {}
+for i in np.arange(len(norm_tf)):
+    dict = norm_tf[i]
+    tfidf_sentence = []
+    for word in dict.keys():
+        tfidf_sentence.append(dict[word] * idf[word])
+    tfidf_sums[i] = sum(tfidf_sentence)
+
+#sort the tfidf-sums in descending order
+sorted_tfidf_sums = sorted(tfidf_sums.items(), key=operator.itemgetter(1), reverse=True)
+
+#select the specific sentences based on their tfidf-sums
+selected = []
+for i in range(int(0.2 * n_sentences)):
+    row, _ = sorted_tfidf_sums[i]
+    selected.append(row)
+
+#sort the selected sentences based on their appearance-order in the text
+list.sort(selected)
+for i in range(len(selected)):
+    print(sentences[selected[i]])
